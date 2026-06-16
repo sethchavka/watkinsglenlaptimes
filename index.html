@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Watkins Glen — Lap Time Analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0a0d12; --panel:#11151c; --panel2:#161b24; --line:#222a35; --line2:#2d3744;
+  --txt:#eef1f6; --muted:#94a1b2; --dim:#5d6b7d;
+  --accent:#e6b84f; /* gold — overall best */
+  --saw:#a472e8;   /* William Sawalich — purple */
+  --crews:#f0883e; /* Brent Crews — orange */
+  --jones:#e25555; /* Brandon Jones — red */
+  --gray:#4fc88a;  /* Taylor Gray — green */
+  --hawk:#42c5d4;  /* Jack Hawksworth — cyan */
+  --koch:#e26fc8;  /* Blake Koch — fuchsia */
+  --gt12:#ec6ea0;  /* GT12 platform — pink */
+  --mono:'JetBrains Mono',monospace;
+  --cond:'Barlow Condensed',sans-serif;
+  --radius:10px; --radius-sm:6px;
+}
+body.light{
+  --bg:#eef1f5; --panel:#ffffff; --panel2:#f5f7fa; --line:#dde3ec; --line2:#c4cedb;
+  --txt:#10151c; --muted:#52607e; --dim:#8492a3;
+  --accent:#b8860b; --saw:#7d4fc8; --crews:#d2691e; --jones:#c0392b; --gray:#0c9e72; --hawk:#1789a0; --koch:#c0398f; --gt12:#d6437f;
+}
+*{box-sizing:border-box;margin:0;padding:0;font-variant-numeric:tabular-nums}
+html,body{height:100%}
+body{
+  font-family:var(--cond); background:var(--bg); color:var(--txt); font-size:16px; line-height:1.45;
+  -webkit-font-smoothing:antialiased; letter-spacing:.2px;
+  background-image:
+    radial-gradient(900px 500px at 88% -10%,rgba(230,184,79,.05),transparent 60%),
+    radial-gradient(800px 500px at 0% 110%,rgba(164,114,232,.04),transparent 60%);
+  background-attachment:fixed; transition:background-color .25s,color .25s;
+}
+::selection{background:var(--accent);color:#0a0c00}
+.main{max-width:1180px;margin:0 auto;padding:0 0 60px}
+
+/* ===== HEADER ===== */
+.header{position:relative;padding:34px 32px 26px;border-bottom:1px solid var(--line);overflow:hidden;
+  background:linear-gradient(180deg,var(--panel2),transparent 90%)}
+.header::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;
+  background:linear-gradient(90deg,var(--accent),transparent 60%)}
+.header-top{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:2.5px;color:var(--accent);text-transform:uppercase;font-weight:500}
+h1{font-family:var(--cond);font-weight:900;font-size:58px;line-height:.9;letter-spacing:.3px;text-transform:uppercase;margin-top:8px}
+h1 em{font-style:normal;color:var(--muted);font-weight:600;display:block}
+.header-meta{display:flex;gap:16px;margin-top:14px;flex-wrap:wrap}
+.header-meta-item{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.5px;
+  padding:4px 10px;border:1px solid var(--line2);border-radius:20px}
+.header-stats{display:flex;gap:0}
+.hstat{padding:4px 22px;border-left:1px solid var(--line2);text-align:right}
+.hstat:first-child{border-left:none}
+.hstat-val{font-family:var(--cond);font-weight:800;font-size:40px;line-height:1;letter-spacing:.5px}
+.hstat-label{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:1.5px;text-transform:uppercase;margin-top:5px}
+.themebtn{position:absolute;top:24px;right:32px;background:var(--panel2);border:1px solid var(--line2);color:var(--muted);
+  width:34px;height:34px;border-radius:var(--radius-sm);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;transition:.18s;z-index:5}
+.themebtn:hover{color:var(--accent);border-color:var(--accent)}
+
+.content{padding:28px 32px 0}
+.section-label{font-family:var(--mono);font-size:10.5px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;
+  margin:36px 0 14px;display:flex;align-items:center;gap:12px;font-weight:500}
+.section-label::after{content:"";flex:1;height:1px;background:var(--line)}
+.section-label:first-child{margin-top:0}
+
+/* ===== SUMMARY ===== */
+.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.summary-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;position:relative;overflow:hidden}
+.summary-card-bar{position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent)}
+.summary-label{font-family:var(--mono);font-size:9.5px;letter-spacing:1.2px;color:var(--dim);text-transform:uppercase}
+.summary-val{font-family:var(--cond);font-weight:800;font-size:34px;line-height:1.05;margin-top:6px;letter-spacing:.5px}
+.summary-sub{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:5px;line-height:1.5}
+
+/* ===== CHARTS ===== */
+.chart-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px 16px;margin-bottom:18px}
+.chart-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.chart-title{font-family:var(--cond);font-weight:700;font-size:21px;letter-spacing:.4px;text-transform:uppercase}
+.chart-sub{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.3px;text-align:right;max-width:60%;line-height:1.6}
+.chart-wrap{height:320px;position:relative}
+
+/* ===== LEGEND ===== */
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+.legend-item{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10px;letter-spacing:.5px;
+  padding:7px 13px;border:1px solid var(--line2);border-radius:20px;text-transform:uppercase;color:var(--muted)}
+.legend-dot{width:9px;height:9px;border-radius:50%}
+
+/* ===== DRIVER COUNTERS ===== */
+.counter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.counter{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;position:relative;overflow:hidden}
+.counter::before{content:"";position:absolute;top:0;left:0;bottom:0;width:3px;background:var(--cc,var(--muted))}
+.counter-name{font-family:var(--cond);font-weight:700;font-size:18px;text-transform:uppercase;letter-spacing:.3px;padding-left:6px}
+.counter-laps{font-family:var(--cond);font-weight:800;font-size:30px;line-height:1;margin-top:6px;padding-left:6px}
+.counter-laps small{font-family:var(--mono);font-size:10px;color:var(--dim);font-weight:400;margin-left:4px}
+.counter-sub{font-family:var(--mono);font-size:9.5px;color:var(--muted);margin-top:6px;padding-left:6px;letter-spacing:.4px}
+
+/* ===== FILTERS ===== */
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+.filter-group{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.filter-glabel{font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--dim);text-transform:uppercase;margin-right:2px}
+.filter-btn{font-family:var(--mono);font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);
+  background:var(--panel);border:1px solid var(--line2);border-radius:20px;padding:6px 13px;cursor:pointer;transition:.15s}
+.filter-btn:hover{border-color:var(--muted);color:var(--txt)}
+.filter-btn.active{background:var(--txt);color:var(--bg);border-color:var(--txt);font-weight:700}
+.filter-sep{width:1px;align-self:stretch;background:var(--line);margin:2px 6px}
+
+/* ===== SESSION CARDS ===== */
+.sessions-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+.session-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column}
+.session-head{padding:14px 16px;border-bottom:1px solid var(--line);position:relative}
+.session-head::before{content:"";position:absolute;top:0;left:0;bottom:0;width:3px;background:var(--cc,var(--muted))}
+.session-driver{font-family:var(--cond);font-weight:800;font-size:21px;text-transform:uppercase;letter-spacing:.3px;line-height:1}
+.session-date{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;letter-spacing:.4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tagpill{font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.6px;padding:2px 7px;border-radius:3px;text-transform:uppercase;border:1px solid transparent}
+.tagpill.gt12{background:rgba(236,110,160,.16);color:var(--gt12);border-color:rgba(236,110,160,.4)}
+.tagpill.gtx{background:rgba(148,161,178,.14);color:var(--muted);border-color:var(--line2)}
+.tagpill.grip{background:rgba(79,200,138,.14);color:var(--gray);border-color:rgba(79,200,138,.4)}
+.tagpill.tire{background:rgba(230,184,79,.12);color:var(--accent);border-color:rgba(230,184,79,.35)}
+.session-meta{display:flex;gap:14px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel2)}
+.sm-item{display:flex;flex-direction:column}
+.sm-k{font-family:var(--mono);font-size:8.5px;color:var(--dim);letter-spacing:1px;text-transform:uppercase}
+.sm-v{font-family:var(--cond);font-weight:700;font-size:18px;margin-top:2px}
+.note-banner{font-family:var(--mono);font-size:10px;line-height:1.5;padding:9px 16px;background:rgba(230,184,79,.08);
+  border-bottom:1px solid var(--line);color:var(--accent);letter-spacing:.3px;display:flex;gap:8px}
+.note-banner.grip{background:rgba(79,200,138,.07);color:var(--gray)}
+.runs{padding:6px 16px 12px}
+.run{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+.run:last-child{border-bottom:none}
+.run-no{font-family:var(--mono);font-size:10px;color:var(--dim);min-width:34px;font-weight:600}
+.run-body{flex:1;min-width:0}
+.run-desc{font-family:var(--cond);font-weight:600;font-size:15px;line-height:1.15;letter-spacing:.2px}
+.run-tire{font-family:var(--mono);font-size:8.5px;color:var(--dim);margin-top:2px;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.run-best{font-family:var(--cond);font-weight:800;font-size:20px;min-width:62px;text-align:right;letter-spacing:.3px}
+.run-best.session-best{color:var(--gray)}
+.run-best.outlier{color:var(--dim);text-decoration:line-through;text-decoration-thickness:1px}
+.run-avg{font-family:var(--mono);font-size:10px;color:var(--muted);min-width:54px;text-align:right}
+.run-laps{font-family:var(--mono);font-size:10px;color:var(--dim);min-width:30px;text-align:right}
+.comments-block{padding:0 16px 14px;margin-top:auto}
+.comment{font-family:var(--cond);font-size:13.5px;line-height:1.4;color:var(--muted);padding:8px 0;border-top:1px dashed var(--line2)}
+.comment-no{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:.5px;margin-right:5px}
+
+/* ===== LOCK GATE ===== */
+.lockgate{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(900px 500px at 50% -10%,rgba(230,184,79,.07),transparent 60%),var(--bg)}
+.lockbox{width:min(360px,90vw);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:34px 30px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.lockbrand{font-family:var(--mono);font-size:11px;letter-spacing:3px;color:var(--accent);margin-bottom:10px;text-transform:uppercase}
+.locktitle{font-family:var(--cond);font-size:30px;font-weight:900;text-transform:uppercase;margin:0 0 4px}
+.locksub{font-family:var(--mono);font-size:10.5px;letter-spacing:1px;color:var(--muted);margin:0 0 22px;text-transform:uppercase}
+.lockinput{width:100%;background:var(--bg);border:1px solid var(--line2);border-radius:8px;color:var(--txt);font-family:var(--mono);font-size:15px;padding:13px 14px;letter-spacing:1px;outline:none;transition:.15s}
+.lockinput:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(230,184,79,.15)}
+.lockbtn{width:100%;margin-top:14px;background:var(--accent);color:#0b0b0b;border:none;border-radius:8px;font-family:var(--cond);font-weight:800;font-size:16px;letter-spacing:1px;text-transform:uppercase;padding:13px;cursor:pointer;transition:.15s}
+.lockbtn:hover{filter:brightness(1.08)}
+.lockerr{min-height:18px;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--jones)}
+.lockgate.shake .lockbox{animation:shake .4s}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.app-hidden{display:none}
+
+@media(max-width:720px){
+  h1{font-size:42px}
+  .header{padding:24px 18px 20px}
+  .content{padding:22px 18px 0}
+  .summary-grid{grid-template-columns:repeat(2,1fr)}
+  .header-stats{margin-top:16px}
+  .hstat{padding:4px 16px}
+  .chart-wrap{height:260px}
+  .chart-sub{max-width:100%;text-align:left}
+  .sessions-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="lockgate" id="lockgate">
+  <div class="lockbox">
+    <div class="lockbrand">Toyota Racing Development&ensp;·&ensp;Joe Gibbs Racing</div>
+    <div class="locktitle">Watkins Glen</div>
+    <div class="locksub">Simulator Lap Analysis</div>
+    <input type="password" class="lockinput" id="lockinput" placeholder="ENTER PASSWORD" autocomplete="off">
+    <button class="lockbtn" id="lockbtn">Unlock</button>
+    <div class="lockerr" id="lockerr"></div>
+  </div>
+</div>
+
+<div class="app app-hidden" id="app">
+<div class="main">
+  <div class="header">
+    <button class="themebtn" id="themebtn" title="Toggle light/dark">◑</button>
+    <div class="header-top">
+      <div>
+        <div class="eyebrow">Toyota Racing Development · Joe Gibbs Racing · Simulator Analysis</div>
+        <h1>Watkins Glen<em>Lap Time Analysis</em></h1>
+        <div class="header-meta">
+          <div class="header-meta-item" id="meta-track">WatkinsGlen_v2101 / v2102</div>
+          <div class="header-meta-item" id="meta-sim">GT12 · GTX</div>
+          <div class="header-meta-item" id="meta-tire">25Wat1_o08</div>
+          <div class="header-meta-item" id="meta-dates">Apr 20 – May 12, 2026</div>
+        </div>
+      </div>
+      <div class="header-stats">
+        <div class="hstat"><div class="hstat-val" id="stat-sessions">14</div><div class="hstat-label">Sessions</div></div>
+        <div class="hstat"><div class="hstat-val" id="stat-laps">—</div><div class="hstat-label">Valid Laps</div></div>
+        <div class="hstat"><div class="hstat-val" style="color:var(--accent)" id="stat-best">71.84</div><div class="hstat-label">Best Lap · Clean</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- SUMMARY -->
+    <div class="section-label">Summary</div>
+    <div class="summary-grid" id="summary-grid"></div>
+
+    <!-- CHART: best lap per session -->
+    <div class="section-label">Best Lap Per Session</div>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">Best Clean Lap · By Session</div>
+        <div class="chart-sub">All sessions in date order · Off-pace laps excluded (&gt;90s)</div>
+      </div>
+      <div class="chart-wrap"><canvas id="bestChart"></canvas></div>
+    </div>
+
+    <!-- CHART: avg 1st lap distribution -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">Avg 1st Lap · Run Distribution</div>
+        <div class="chart-sub">Every run as one dot · Tick marks show per-driver median · Bars show min–max range</div>
+      </div>
+      <div class="chart-wrap"><canvas id="stripChart"></canvas></div>
+    </div>
+
+    <!-- DRIVER COUNTERS -->
+    <div class="section-label">Driver Lap Counts</div>
+    <div class="counter-grid" id="counter-grid"></div>
+
+    <!-- SESSIONS -->
+    <div class="section-label">Sessions</div>
+    <div class="filters" id="filters"></div>
+    <div class="sessions-grid" id="sessions-grid"></div>
+
+  </div>
+</div>
+</div>
+
+<script>
+/* =================== DATA =================== */
+/* Driver registry: color + key */
+const DRIVER_META = {
+  'William Sawalich': {key:'saw',   color:'var(--saw)'},
+  'Brent Crews':      {key:'crews', color:'var(--crews)'},
+  'Brandon Jones':    {key:'jones', color:'var(--jones)'},
+  'Taylor Gray':      {key:'gray',  color:'var(--gray)'},
+  'Jack Hawksworth':  {key:'hawk',  color:'var(--hawk)'},
+  'Blake Koch':       {key:'koch',  color:'var(--koch)'}
+};
+const OUTLIER = 76; // laps at/above this are excluded — Watkins clean pace ~72s; rain (77+) & blowups excluded
+
+/* Sessions parsed from the Watkins Glen PDF reports.
+   Each run: no, desc, avg1 (avg of 1st 3 laps as reported), laps (count as printed),
+   times[] (individual out laps as printed), comment. */
+const SESSIONS = [
+  {
+    id:'20260420_NOS_WAT_JGR18_DS', driver:'William Sawalich', car:'18b',
+    date:'Apr 20', dateSort:20260420, track:'WatkinsGlen_v2001', sim:'GT12', tire:'25Wat1_o08',
+    runs:[
+      {no:1, desc:'Car 18b Baseline', avg1:76.36, laps:3, times:[79.51,73.20], comment:'*Crashed'},
+      {no:2, desc:'Rerun R01', avg1:72.96, laps:2, times:[72.96], comment:''}
+    ]
+  },
+  {
+    id:'20260427_NOS_WAT_JGR19_DS', driver:'Brent Crews', car:'19b',
+    date:'Apr 27', dateSort:20260427, track:'WatkinsGlen_v2101', sim:'GTX', tire:'25Wat1_o08',
+    runs:[
+      {no:1, desc:'Running 19b Race setup post stop 1, post-scaled cold tire', avg1:73.12, laps:7, times:[76.38,73.30,73.27,73.33,73.37,72.78], comment:"I'm just too free pretty much everywhere. I don't have enough rear stability or rear grip. I don't want to change the platform because that part feels good, not like it's rolling over."},
+      {no:2, desc:'Running the build', avg1:74.08, laps:4, times:[73.54,75.47,73.24], comment:"It just made me tighter on entry, but I didn't like it. Didn't affect anything other than the tightness on entry."},
+      {no:3, desc:'Rerun Run 2 with TB down 1/4"', avg1:73.12, laps:5, times:[73.31,73.20,73.19,72.97], comment:"That helped my drive, but I didn't like the way it turned on entry. Run 1 was more maneuverable with better front end feel, but the drive off wasn't as good as now."},
+      {no:4, desc:'Rerun run 3 with -150 lbs. on the FARB', avg1:73.41, laps:4, times:[73.20,73.24,73.78], comment:"I don't like the way it drives through T2 and T3. Felt like a hybrid between the one I liked and the one I didn't. Cut a little better but only through the slow speed stuff. Balance was a bit inconsistent."},
+      {no:5, desc:'Rerun run 4 with -0.2% NW', avg1:72.99, laps:3, times:[73.07,72.91], comment:'Feels great in the first two corners — like you put me back on the baseline. Could use a little more cut through the right-handers (T2, T3, Carousel, T6, T7).'},
+      {no:6, desc:'Re-baseline on the setup from run 1', avg1:73.71, laps:3, times:[73.75,73.66], comment:"This feels like it has more braking potential — feels more realistic. I'm just too free, same feedback as before."},
+      {no:7, desc:'Rerun run 5 with pad mu up to match run 1/6', avg1:72.89, laps:2, times:[72.89], comment:"I like this setup the best. I just need a little more front-end positivity. A little too snug and not able to be straight on exit so I lose drive."},
+      {no:8, desc:'Both front shocks -> 421@7', avg1:73.15, laps:4, times:[73.10,73.24,73.11], comment:"A little better but I still need more. Gave me just the slightest bit of cut. Need more help with both T2 and T3 — they're pretty equal."},
+      {no:9, desc:'Rerun run 8 with -0.5% wedge and -500 lbs. RF stop', avg1:73.19, laps:3, times:[73.34,73.04], comment:'That cut better. Need a bit more lateral grip and drive (majority drive). T2 and T3 both helped when I lifted at the right point.'},
+      {no:10, desc:'Rerun run 2 with -0.2% NW and pad mu corrected', avg1:72.79, laps:3, times:[72.88,72.70], comment:'Felt similar to the baseline. Could still use more lateral grip when leaning on the tire. Drive-off felt good. Prefer this over Run 9.'},
+      {no:11, desc:'Rerun run 10 with +1.5|+2 front psi and +0.5|+1 rear psi', avg1:72.65, laps:3, times:[72.48,72.81], comment:'Whatever this is is really good. That woke it up — a bunch of positivity, like more overall grip. I need more back.'},
+      {no:12, desc:'Rerun run 11 with wedge in, RF stop -500 lbs., TB -1/4" both sides', avg1:72.56, laps:4, times:[72.59,72.58,72.50], comment:'That was really good — the best run. Could use a little bit of drive off now, just a hair out of the last corner.'}
+    ]
+  },
+  {
+    id:'20260427_NOS_WAT_JGR54_DS', driver:'Taylor Gray', car:'54b',
+    date:'Apr 27', dateSort:20260427.5, track:'WatkinsGlen_v2101', sim:'GT12', tire:'25Wat1_o08',
+    runs:[
+      {no:1, desc:'25WAT1 54b Start Race Setup (1750 brake gain)', avg1:72.80, laps:10, times:[73.79,73.15,86.68,74.22,72.94,72.91,73.40,73.39,72.54], comment:'Drives pretty good, feels like a lot of grip. Does not like the right-hand curb before the carousel. Tight to the left up the hill after T2 — sometimes have to lift to not hit the wall.'},
+      {no:2, desc:'Run 1 with 1 1/2" rear UCA pivots', avg1:72.78, laps:5, times:[72.77,72.87,73.31,72.71], comment:'That change made my right-handers tighter, which also hurt my drive. Barely helped the left up the hill — not enough to overcome the loss in the rights.'},
+      {no:3, desc:'26WAT1 54b AB0 (had a build for Watkins already)', avg1:72.57, laps:6, times:[72.94,72.49,73.07,72.67,72.54], comment:'Wrong tire on this one. Wish we could make the top of the hill turn back to the left without hurting my rights.', tire:'24Wat1_o10'},
+      {no:4, desc:'26WAT1 54b AB0 with the o08 tire', avg1:72.56, laps:4, times:[72.70,72.72,72.25], comment:'That is okay. Maybe a little better over the top of the hill. Made my right-handers a tick tighter but not bad.'},
+      {no:5, desc:'Run 4 with 0.5% rear grip out', avg1:72.65, laps:9, times:[73.59,72.75,72.85,128.31,73.41,72.68,72.53,72.92], comment:'Total grip changes: 0.5% out of fronts, 1% out of rears. Definitely lost some rear lateral late.'},
+      {no:6, desc:'End run 5 with 51.5% nose weight', avg1:73.26, laps:4, times:[72.93,74.11,72.73], comment:'Felt a little tighter. Tighter across the center and had to manage my rear grip more.'}
+    ]
+  },
+  {
+    id:'20260427_NOS_WAT_JGR18_DS', driver:'William Sawalich', car:'18b',
+    date:'Apr 27', dateSort:20260427.7, track:'WatkinsGlen_v2101', sim:'GT12', tire:'25Wat1_o08',
+    runs:[
+      {no:1, desc:'25Wat1 Car 18b Baseline (Steering Gain 0.450)', avg1:72.45, laps:16, times:[73.63,73.47,72.85,72.69,72.85,72.76,83.62,73.54,73.02,73.03,72.54,72.48,72.88,72.38,72.50], comment:'T1 good, tight in, good side bite. Esses tight. Bustop tight middle. T5 tight center, loose off. T6 tight in/off. Last corner loose in, loose off.'}
+    ]
+  },
+  {
+    id:'20260429_NOS_WAT_JGR54_DS', driver:'Taylor Gray', car:'54b',
+    date:'Apr 29', dateSort:20260429, track:'WatkinsGlen_v2101', sim:'GT12', tire:'25Wat1_o08',
+    runs:[
+      {no:1, desc:'25WAT1 54b start race setup', avg1:72.42, laps:21, times:[74.01,73.33,72.85,73.00,72.51,72.98,73.21,73.76,72.87,72.62,72.76,73.45,72.38,72.70,72.55,72.63,72.48,72.56,72.52,72.39], comment:'Balance is good, pace seems pretty fast. Feels pretty similar to GTX.'},
+      {no:2, desc:'Rerun R01 + use less runoff where tire packs will be', avg1:72.59, laps:7, times:[72.99,73.05,72.53,73.20,72.61,72.63], comment:'Could make T1 more of a crashfest, could make T6 more of a passing zone.'}
+    ]
+  },
+  {
+    id:'20260504_NOS_WAT_JGR19_DS', driver:'Brent Crews', car:'19b',
+    date:'May 4', dateSort:20260504, track:'WatkinsGlen_v2102', sim:'GTX', tire:'25Wat1_o08',
+    runs:[
+      {no:1, desc:'Cold state, 20b 25WAT1 post-scaled tire on AB1v3, linearized fronts', avg1:72.85, laps:5, times:[73.59,72.99,72.82,72.73], comment:"A little too free. Need more lateral grip carrying speed. Through the carousel the back just goes and the buzzers turn on. T3 the back is on the verge of loose but the front doesn't work great."},
+      {no:2, desc:'Rerun run 2 with TB down 1/4" both sides', avg1:72.89, laps:3, times:[72.92,72.86], comment:"Didn't move the balance at all — identical, same laterally. Under the limit of the front tire and then the rears try to go loose on me."},
+      {no:3, desc:'RR spring to 480 lbs.', avg1:72.81, laps:4, times:[72.79,72.83,72.81], comment:"Still a bit too free. Don't know what to do through the carousel to stop the buzzers. Back is trying to rotate but the front is kinda numb. Not enough lateral but drive-off is fine."},
+      {no:4, desc:'Air pressure change, +1.5|+2 fronts and +0.5|+1 rears', avg1:72.95, laps:5, times:[73.20,73.07,72.90,72.89], comment:"Still feels the same, not moving much. Drive off good, would be better with more lateral. Front gets light up the hill into T3, but lateral grip is the bigger issue."},
+      {no:5, desc:'Rerun run 12 from previous session with 480 lb RR spring', avg1:72.98, laps:4, times:[72.82,73.08,73.04], comment:'Gave up left and right cut. Could feel the difference. Starts wiggling under the limit of the tire and turns on the buzzers.'},
+      {no:6, desc:'Rerun run 5 with front heights corrected', avg1:72.69, laps:5, times:[72.71,72.80,72.84,72.56], comment:"A little better, still just too loose."},
+      {no:7, desc:'Rerun run 4 with NW out, W in, Pad Mu change, softer RF stop', avg1:72.40, laps:5, times:[72.84,72.42,72.32,72.46], comment:'Better, still too loose. Gave a little more lateral everywhere, not a lot. Free into T7 and T1 as soon as I turn. The rights are where I struggle more for lateral.'},
+      {no:8, desc:'Rerun run 7 with TA down', avg1:72.68, laps:4, times:[72.55,73.16,72.32], comment:"Similar, didn't move much. Maybe a tiny bit better but not enough to tell."},
+      {no:9, desc:'Rerun run 8 with RSTA set to middle', avg1:72.23, laps:9, times:[72.89,72.19,72.30,72.33,72.43,72.45,72.39,72.19], comment:'Best one yet. Gave a little more lateral and more platform — consistent through T1 and T2/3, just made more sense. Still need more lateral.'},
+      {no:10, desc:'Rerun run 9 with FARB out', avg1:72.41, laps:4, times:[72.51,72.25,72.47], comment:"Didn't change anything, felt the same."},
+      {no:11, desc:'Rerun run 10 with +0.3% NW in', avg1:72.48, laps:4, times:[72.62,72.47,72.36], comment:'Did not help, very similar. A bit tighter through the slow-speed lefts, that was the only thing I noticed.'},
+      {no:12, desc:'Rerun run 9 with front shocks 421@7', avg1:73.48, laps:3, times:[73.50,73.45], comment:"Have lateral but now it's plowing tight with zero drive. Not good, but it did have lateral."}
+    ]
+  },
+  {
+    id:'20260504_NOS_WAT_JGR20_DS', driver:'Brandon Jones', car:'20b',
+    date:'May 4', dateSort:20260504.5, track:'WatkinsGlen_v2102', sim:'GT12', tire:'25Wat1_o08',
+    runs:[
+      {no:1, desc:'25Wat1 Car 20b Race', avg1:73.46, laps:9, times:[75.48,75.07,74.68,73.73,73.57,73.25,73.71,73.55], comment:'A little snug overall, loose rear grip only on T7 and last corner.'},
+      {no:2, desc:'26Wat1 Car 20b AB1 + Updated EDF', avg1:73.30, laps:7, times:[73.97,73.35,73.36,73.33,73.32,73.26], comment:"Not quite as good overall. Lost some front turn in the Esses and some rear grip in the Carousel."},
+      {no:3, desc:'Run 02 + Lower Splitter', avg1:72.97, laps:8, times:[73.06,73.01,72.95,73.68,74.10,73.18,72.94], comment:'Better in all the areas we talked about — a bit more rear grip off the carousel, slightly more front turn to the Esses, but still want more front turn overall.'},
+      {no:4, desc:'Run 03 + less Wedge + Grille', avg1:72.73, laps:8, times:[73.19,72.89,72.93,72.57,73.42,72.72,72.91], comment:'Best one yet, still front sensitive to missing apexes. Rolling a little too much speed makes the front push, but most consistent I was finding — more control under braking.'},
+      {no:5, desc:'Run 04 + front Shocks', avg1:72.72, laps:7, times:[73.40,74.56,72.75,72.65,73.24,72.75], comment:'Like that one the best. Gave up a little roll speed in T3 to be faster in T3. Helped compression in T1.'},
+      {no:6, desc:'Run 05 + rear Shocks', avg1:73.10, laps:7, times:[73.57,72.98,73.36,74.07,73.01,73.30], comment:'A little worse for rear grip, T1 exit and T2. A little front turn gain but not worth the rear grip lost.'}
+    ]
+  },
+  {
+    id:'20260504_NOS_WAT_JGR18_DS', driver:'William Sawalich', car:'18b',
+    date:'May 4', dateSort:20260504.7, track:'WatkinsGlen_v2102', sim:'GT12', tire:'25Wat1_o08',
+    runs:[
+      {no:1, desc:'26Wat1 Car 18b AB2 + Initial LT (Steering gain 0.450)', avg1:78.79, laps:4, times:[73.52,72.75,90.09], comment:'*crashed'},
+      {no:2, desc:'Rerun R01', avg1:72.39, laps:11, times:[72.57,72.61,72.43,72.71,74.23,72.52,72.47,72.74,72.39,72.35], comment:'Much looser.'},
+      {no:3, desc:'Run 02 + Pan Angle + AP', avg1:null, laps:1, times:[], comment:'*crashed'},
+      {no:4, desc:'Rerun R03', avg1:72.66, laps:6, times:[73.09,72.78,72.63,72.82,72.58], comment:"I think I jumped, but that's not too tight. Right-handers are tight, like the exits."},
+      {no:5, desc:'Run 02 + NW', avg1:72.23, laps:6, times:[72.84,72.58,72.29,72.25,72.14], comment:'T1 a little tight on throttle. Esses — full dump gets me loose, have to carry throttle. Rights a touch freer than lefts.'},
+      {no:6, desc:'Run 04 + front FHs', avg1:72.96, laps:5, times:[72.76,73.55,80.27,72.58], comment:'Touch more turn, still tight in T1, have to wait for throttle. Bustop lands tight. Carousel tight out of the groove. T6 still a little tight.'},
+      {no:7, desc:'Run 04 + Wedge', avg1:72.27, laps:7, times:[72.67,72.39,72.36,72.37,72.52,72.07], comment:'A little better turn, T1 and Carousel, kept min speed up. Still need more of that though.'},
+      {no:8, desc:'Run 06 + FARB', avg1:72.24, laps:6, times:[72.67,72.46,72.25,72.40,72.08], comment:'T1 good, T2 more secure with more turn, bustop really good. Carousel on throttle drives it tight, T6 still needs speed.'},
+      {no:9, desc:'Run 07 + Rain (-10% grip AFT)', avg1:81.10, laps:3, times:[78.89,83.30], comment:''},
+      {no:10, desc:'Rerun R09 + Ghostline, kept LTs', avg1:78.19, laps:7, times:[79.33,78.53,78.59,77.85,78.18,78.58], comment:''},
+      {no:11, desc:'Rain Setup, kept LTs, kept Ghostline', avg1:78.92, laps:3, times:[78.94,78.89], comment:'Feels fine, Esses feel a little tighter.'},
+      {no:12, desc:'Rerun R07, cleared LTs', avg1:72.42, laps:3, times:[72.56,72.27], comment:''},
+      {no:13, desc:'Run 12 + front Shocks', avg1:72.44, laps:3, times:[72.28,72.61], comment:"Nothing crazy in the high-speed stuff. Carousel rotated a little better but still tight on throttle. Could carry a little more min speed in T7."}
+    ]
+  },
+  {
+    id:'20260505_NOS_WAT_JGR19_DS', driver:'Brent Crews', car:'19b',
+    date:'May 5', dateSort:20260505, track:'WatkinsGlen_v2102', sim:'GT12', tire:'25Wat1_o08',
+    runs:[
+      {no:1, desc:'26Wat1 Car 19b AB4 Baseline', avg1:72.69, laps:6, times:[73.74,73.41,72.94,72.74,72.39], comment:'Felt better than GTX. Could use more lateral grip and turning left.'},
+      {no:2, desc:'Run 01 + 26Wat1 EDF', avg1:72.29, laps:6, times:[72.63,72.32,72.25,72.29,72.32], comment:'More overall grip but still fighting the same thing — too tight in the left-handers, want more lateral in the rights. Drives better here than in GTX.'},
+      {no:3, desc:'Rerun R03 + 460RR', avg1:71.98, laps:8, times:[72.18,72.27,72.05,71.93,72.06,72.14,71.97], comment:'A lot better, turning better, helped some lateral like the last corner. Could still use a little more drive and more cut in the lefts.'},
+      {no:4, desc:'Rerun R04 + -1psi fronts', avg1:72.21, laps:4, times:[72.34,72.12,72.17], comment:'Did not feel like a gain anywhere, just made the back end light.'},
+      {no:5, desc:'Rerun R08 + RSTA Mid', avg1:72.01, laps:5, times:[72.09,71.90,72.03,72.14], comment:'Really similar to my favorite run, maybe just a little better drive.'},
+      {no:6, desc:'Rerun R05 half PSI LS', avg1:72.07, laps:5, times:[72.32,72.26,71.95,72.00], comment:'A little better than the last. Still need a little more lateral. Better turn in the Carousel. This is close.'},
+      {no:7, desc:'Run 06 + half Wedge out', avg1:72.06, laps:6, times:[72.20,71.96,72.23,72.14,72.09], comment:"Drove good, just didn't feel like it had the overall grip the last one did — couldn't roll the same speed."},
+      {no:8, desc:'Run 07 + LR Spring in', avg1:72.35, laps:2, times:[72.35], comment:'Too tight in the Carousel, not enough lateral grip. *Crashed.'},
+      {no:9, desc:'Rerun R08', avg1:72.13, laps:3, times:[72.01,72.24], comment:'Do not have the same lateral in the Bustop as before.'},
+      {no:10, desc:'Rerun R06 + 500s', avg1:71.89, laps:10, times:[71.87,71.99,72.19,71.95,72.01,71.99,72.02,72.07,71.84], comment:'Could use more drive off of T7, same in T1. A little lateral stick off — platform is on the free side everywhere.'},
+      {no:11, desc:'Rerun R02 + new AP', avg1:72.17, laps:10, times:[72.39,72.46,72.18,71.93,107.77,92.66,83.33,87.05,89.45], comment:'Overall tighter balance with less drive. Lateral was better but couldn\'t get turned as quickly — less cut and less drive.'},
+      {no:12, desc:'Run 07 + updated spring files', avg1:71.94, laps:3, times:[71.96,71.92], comment:"Didn't feel anything different, felt like the baselines I liked. Could use a little more lateral."},
+      {no:13, desc:'Run 12 + Rain (-10% grip AFT, -12% global)', avg1:77.58, laps:5, times:[78.36,77.71,77.06,77.96], comment:'Hard to get the grip correct, but good for remembering the lines I want to take.'}
+    ]
+  },
+  {
+    id:'20260505_NOS_WAT_JGR54_DS', driver:'Taylor Gray', car:'54b',
+    date:'May 5', dateSort:20260505.3, track:'WatkinsGlen_v2102', sim:'GT12', tire:'25Wat1_o08',
+    runs:[
+      {no:1, desc:'25Wat1 Car 54b SR', avg1:72.95, laps:7, times:[73.82,73.88,73.18,72.86,73.01,72.99], comment:'A little free out of T7, on edge out of the Carousel. Mindful of over-slipping the LR. A little snug in the left-handers.'},
+      {no:2, desc:'26WAT1 54b AB1v3', avg1:73.19, laps:3, times:[73.12,73.26], comment:'Biggest issue is T7 lateral grip right after turn-in, and a bit into the Bustop. Does not take the high-speed lateral load.'},
+      {no:3, desc:'Run 02 + 1% Wedge out', avg1:72.56, laps:9, times:[72.98,73.23,73.10,72.44,72.80,72.56,72.67,72.81], comment:'Balance pretty decent, a little on edge on rears in the Bustop and Carousel. On the verge of too tight in the Esses.'},
+      {no:4, desc:'Run 03 + 2600 FARB', avg1:72.35, laps:7, times:[72.84,73.17,72.62,72.28,72.35,72.42], comment:'Balance okay, that change gave more rear grip. Sometimes tight up the hill in the Esses.'},
+      {no:5, desc:'Run 03 + 51.5 NW', avg1:72.18, laps:2, times:[72.18], comment:'Definitely helped front grip, especially through the Esses. Gave up a little lateral through the high-speed and maybe a little low-speed.'},
+      {no:6, desc:'Run 05 + 450 Rears', avg1:72.38, laps:3, times:[72.62,72.14], comment:'Not bad. Maybe the slightest bit tighter, but also maybe a little worse lateral grip.'},
+      {no:7, desc:'Run 05 + Rain grip', avg1:79.54, laps:9, times:[80.92,79.63,79.70,79.72,80.41,80.43,79.88,79.29], comment:'Balance felt really good.'}
+    ]
+  },
+  {
+    id:'20260505_NOS_WAT_JGR20_DS', driver:'Brandon Jones', car:'20b',
+    date:'May 5', dateSort:20260505.5, track:'WatkinsGlen_v2102', sim:'GTX', tire:'25Wat1_o08',
+    runs:[
+      {no:1, desc:'Test', avg1:74.06, laps:2, times:[74.06], comment:''},
+      {no:2, desc:'B.Jones', avg1:73.16, laps:14, times:[74.38,73.69,73.67,73.91,73.77,73.69,73.19,74.78,73.26,73.10,73.27,73.20,73.33], comment:'Little less car potential overall — front and rear grip, less turn through T1/2. Bus stop is better. Carousel was free.'},
+      {no:3, desc:'10% Brake gain adjustment', avg1:73.10, laps:5, times:[73.16,73.23,73.32,72.92], comment:'Better on brake pressure and effort.'},
+      {no:4, desc:'Rear shock option', avg1:72.94, laps:9, times:[73.44,73.13,72.97,73.02,73.06,72.82,73.09,73.31], comment:"Wasn't too bad — not a lot of gain or loss, maybe a slight amount of rear grip gain."},
+      {no:5, desc:'Run 4 with rear springs and TB', avg1:72.73, laps:7, times:[73.20,73.55,73.03,72.93,72.71,72.56], comment:'Pretty good — liked the rear grip gain through Carousel and T1. May have made it slightly pushy but a good trade-off.'},
+      {no:7, desc:'B.Jones back in. Run 5 with camber adj in fronts', avg1:72.70, laps:7, times:[73.25,72.80,73.88,73.12,72.58,72.73], comment:"At first wasn't better, but smoothed out over laps and showed some gain overall."}
+    ]
+  },
+  {
+    id:'20260505_NOS_WAT_JGR20_DS_KOCH', driver:'Blake Koch', car:'20b',
+    date:'May 5', dateSort:20260505.55, track:'WatkinsGlen_v2102', sim:'GTX', tire:'25Wat1_o08',
+    runs:[
+      {no:6, desc:'Blake in (Run 4 setup: rear spring TB up)', avg1:72.73, laps:11, times:[74.92,73.22,72.87,73.11,72.97,72.61,73.18,73.05,72.79,72.79], comment:''}
+    ]
+  },
+  {
+    id:'20260511_NOS_WAT_JGR20_DS', driver:'Brandon Jones', car:'20b',
+    date:'May 11', dateSort:20260511, track:'WatkinsGlen_v2102', sim:'GT12', tire:'25Wat1_o08',
+    runs:[
+      {no:1, desc:'26Wat1 Car 20b R3', avg1:73.55, laps:7, times:[74.76,73.84,73.58,73.63,73.88,73.44], comment:'Close — at the track had slightly more front turn and slightly less rear grip.'},
+      {no:2, desc:'Rerun R01 + grip-shift / brake bias LTs', avg1:72.54, laps:15, times:[73.08,73.32,73.55,73.19,73.31,72.71,72.44,72.86,72.94,72.74,72.96,72.97,72.47,72.77], comment:'In the ballpark for balance. Pace a little fast. Was one round to rear on brake bias in the race; pretty good place by L10.'},
+      {no:3, desc:'Car 19b Balance + Trans tire, cleared LTs', avg1:null, laps:1, times:[], comment:'*VDF issue', tire:'TRANS_26Wat1_o01'},
+      {no:4, desc:'Corrected VDF', avg1:72.65, laps:7, times:[73.16,86.10,72.78,72.95,72.58,72.60], comment:'Turns better through the center (T1, T2) but more entry rear-grip limited in the Carousel and Bustop. Front turn gain, a little rear grip loss.', tire:'TRANS_26Wat1_o01'},
+      {no:5, desc:'Run 01 + HOTs (incorrect tire)', avg1:74.01, laps:13, times:[75.25,74.14,74.38,74.39,74.18,75.05,74.27,74.29,74.02,74.09,74.21,73.93], comment:'Feels like we could be slightly less rear grip — front is close. Really like it by L9.'},
+      {no:6, desc:'Run 01 + HOTs + HOT grip AFT LTs', avg1:73.43, laps:9, times:[73.95,73.40,73.45,73.43,74.16,73.84,74.08,74.46], comment:'Initial too much rear; decent place by L4.', tire:'TRANS_26Wat1_o01'},
+      {no:7, desc:'Car 19b + HOTs, cleared other LTs', avg1:73.60, laps:6, times:[73.92,73.83,73.54,74.60,73.43], comment:'Same trend as cold — turns better overall but freer into T7 and bustop, but easier to maintain.', tire:'TRANS_26Wat1_o01'},
+      {no:8, desc:'Run 06 Updated Trans tire + grip AFT LT', avg1:74.00, laps:7, times:[74.44,74.45,74.03,74.27,73.91,74.06], comment:'Still okay with that balance.', tire:'TRANS_26Wat1_o01'},
+      {no:9, desc:'Confirm Run', avg1:72.67, laps:10, times:[72.80,72.82,72.39,73.11,72.94,74.06,74.55,74.13,74.12], comment:'Colds: good there. HOTs: good there.', tire:'26Wat1_o01'}
+    ]
+  },
+  {
+    id:'20260512_NOS_WAT_JGR19_DS', driver:'Brent Crews', car:'19b',
+    date:'May 12', dateSort:20260512, track:'WatkinsGlen_v2102', sim:'GT12', tire:'26Wat1_o01',
+    runs:[
+      {no:1, desc:'26Wat1 Car 19b L22 + 26Wat1_o01 Tire (Steering gain 0.450)', avg1:null, laps:1, times:[], comment:"Just no lateral grip — not as bad as GTX, but no lateral on entry or through the corner like real life. Front turn really good, almost too good, but can't carry speed.", tire:'26Wat1_o01'},
+      {no:2, desc:'Run 01 + full brake mu, +0.5% front / +1% rear s2/s14', avg1:72.95, laps:2, times:[72.95], comment:'Back end too disconnected, front has too much grip.', tire:'26Wat1_o01'},
+      {no:3, desc:'Run 01 + 25Wat1_o08 Tire', avg1:72.63, laps:2, times:[72.63], comment:'Much closer — front is too numb but the back is much better.'},
+      {no:4, desc:'Run 03 + +0.5% front', avg1:72.37, laps:4, times:[72.58,72.42,72.12], comment:'Honestly really good. Could use a little more drive off of T1, a hair more drive and lateral in the Carousel.'}
+    ]
+  }
+];
+
+/* =================== DERIVED =================== */
+const DRIVERS_PRESENT = [...new Set(SESSIONS.map(s=>s.driver))]
+  .sort((a,b)=>Object.keys(DRIVER_META).indexOf(a)-Object.keys(DRIVER_META).indexOf(b));
+
+function cssVar(v){ return getComputedStyle(document.documentElement).getPropertyValue(v.replace(/var\(|\)/g,'').trim()).trim(); }
+function driverColor(d){ return DRIVER_META[d].color; }              // for CSS (e.g. style="color:var(--crews)")
+function driverHex(d){ return cssVar(DRIVER_META[d].color); }        // resolved hex for canvas/Chart.js
+function isGrip(d){ return !!DRIVER_META[d].grip; }
+
+/* valid laps = times below outlier threshold; cleanBest = min valid time */
+function runValidTimes(run){ return run.times.filter(t=>t<OUTLIER); }
+function runCleanBest(run){ const v=runValidTimes(run); return v.length?Math.min(...v):null; }
+function runValidLapCount(run){ return runValidTimes(run).length; }
+
+function sessionCleanBest(s){
+  let best=null;
+  s.runs.forEach(r=>{ const b=runCleanBest(r); if(b!==null && (best===null||b<best)) best=b; });
+  return best;
+}
+function sessionValidLaps(s){ return s.runs.reduce((n,r)=>n+runValidLapCount(r),0); }
+
+/* total valid laps across all sessions */
+const TOTAL_VALID = SESSIONS.reduce((n,s)=>n+sessionValidLaps(s),0);
+
+/* clean best excluding grip-flagged drivers (headline) */
+let cleanBest={time:Infinity,driver:null,session:null,run:null};
+let gripBest={time:Infinity,driver:null,session:null,run:null};
+SESSIONS.forEach(s=>{
+  s.runs.forEach(r=>{
+    const b=runCleanBest(r); if(b===null) return;
+    const target=isGrip(s.driver)?gripBest:cleanBest;
+    if(b<target.time){ target.time=b; target.driver=s.driver; target.session=s.date; target.run=r.no; }
+  });
+});
+
+/* =================== RENDER: SUMMARY =================== */
+function renderSummary(){
+  const g=document.getElementById('summary-grid');
+  const cards=[];
+
+  // headline overall best (no grip exclusion — all drivers valid)
+  if(cleanBest.driver){
+    cards.push(`<div class="summary-card"><div class="summary-card-bar"></div>
+      <div class="summary-label">Best Clean Lap</div>
+      <div class="summary-val" style="color:${driverColor(cleanBest.driver)}">${cleanBest.time.toFixed(2)}</div>
+      <div class="summary-sub">${cleanBest.driver} · ${cleanBest.session} Run ${cleanBest.run}<br>off-pace laps excluded</div></div>`);
+  }
+
+  // best run avg (lowest avg 1st-lap across valid runs)
+  let bestAvg={time:Infinity,driver:null,session:null,run:null};
+  SESSIONS.forEach(s=>s.runs.forEach(r=>{
+    if(runCleanBest(r)===null||r.avg1>=OUTLIER) return;
+    if(r.avg1<bestAvg.time){ bestAvg={time:r.avg1,driver:s.driver,session:s.date,run:r.no}; }
+  }));
+  if(bestAvg.driver){
+    cards.push(`<div class="summary-card"><div class="summary-card-bar" style="background:${driverColor(bestAvg.driver)}"></div>
+      <div class="summary-label">Best Run Avg</div>
+      <div class="summary-val" style="color:${driverColor(bestAvg.driver)}">${bestAvg.time.toFixed(2)}</div>
+      <div class="summary-sub">${bestAvg.driver} · ${bestAvg.session} Run ${bestAvg.run}<br>avg of 1st 3 laps</div></div>`);
+  }
+
+  // drivers count
+  cards.push(`<div class="summary-card"><div class="summary-card-bar" style="background:var(--muted)"></div>
+    <div class="summary-label">Drivers</div>
+    <div class="summary-val">${DRIVERS_PRESENT.length}</div>
+    <div class="summary-sub">${DRIVERS_PRESENT.map(d=>d.split(' ').pop()).join(' · ')}</div></div>`);
+
+  // dominant finding
+  cards.push(`<div class="summary-card"><div class="summary-card-bar" style="background:var(--jones)"></div>
+    <div class="summary-label">Dominant Finding</div>
+    <div class="summary-val" style="font-size:26px">Rear Grip</div>
+    <div class="summary-sub">Cross-driver: too free / lacking lateral &amp; rear grip, esp. through the Carousel, T7 &amp; Bustop</div></div>`);
+
+  g.innerHTML=cards.join('');
+}
+
+/* =================== RENDER: HEADER STATS =================== */
+function renderHeaderStats(){
+  document.getElementById('stat-laps').textContent=TOTAL_VALID;
+  document.getElementById('stat-best').textContent=cleanBest.time.toFixed(2);
+  document.getElementById('stat-best').style.color=driverColor(cleanBest.driver);
+}
+
+/* =================== CHART 1: BEST LAP PER SESSION =================== */
+let bestChartObj, stripChartObj;
+function buildBestChart(){
+  const ctx=document.getElementById('bestChart');
+  const tick=cssVar('--dim'), grid=cssVar('--line'), panel=cssVar('--panel');
+  const ordered=[...SESSIONS].sort((a,b)=>a.dateSort-b.dateSort);
+  const labels=ordered.map(s=>`${s.date}`);
+
+  // one dataset per driver, points only where they ran
+  const datasets=DRIVERS_PRESENT.map(d=>{
+    const data=ordered.map(s=> s.driver===d ? sessionCleanBest(s) : null);
+    const hex=driverHex(d);
+    return {
+      label:d, data,
+      borderColor:hex, backgroundColor:hex,
+      pointRadius:6, pointHoverRadius:8, pointBorderColor:panel, pointBorderWidth:2,
+      borderWidth:2, spanGaps:true, tension:.25,
+      borderDash:isGrip(d)?[5,4]:[]
+    };
+  });
+
+  if(bestChartObj) bestChartObj.destroy();
+  bestChartObj=new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'nearest',intersect:true},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:panel, borderColor:grid, borderWidth:1,
+          titleColor:cssVar('--txt'), bodyColor:cssVar('--muted'), padding:10,
+          callbacks:{
+            title:(items)=>{ const s=ordered[items[0].dataIndex]; return `${s.date} · ${s.driver}`; },
+            label:(c)=>` Best clean: ${c.raw!=null?c.raw.toFixed(2)+'s':'—'}`
+          }
+        }
+      },
+      scales:{
+        x:{ ticks:{color:tick,font:{family:'JetBrains Mono',size:10}}, grid:{color:grid} },
+        y:{ ticks:{color:tick,font:{family:'JetBrains Mono',size:11},callback:v=>v.toFixed(1)},
+            grid:{color:grid},
+            title:{display:true,text:'Best Lap (s)',color:tick,font:{family:'JetBrains Mono',size:10}} }
+      }
+    }
+  });
+}
+
+/* =================== CHART 2: AVG 1ST LAP STRIP =================== */
+function buildStripChart(){
+  const ctx=document.getElementById('stripChart');
+  const tick=cssVar('--dim'), grid=cssVar('--line'), panel=cssVar('--panel');
+
+  // build one scatter point per run: x = driver index, y = avg1
+  // exclude pure-outlier runs and race-pace runs whose avg1 is far off clean qualifying pace
+  const AVG_OUTLIER = 76; // clean pace ~72s; rain runs (avg ~78-81) are excluded from this comparison
+  const points=[]; const ranges={};
+  DRIVERS_PRESENT.forEach((d,i)=>{ ranges[d]={vals:[],i}; });
+  SESSIONS.forEach(s=>{
+    s.runs.forEach(r=>{
+      if(runCleanBest(r)===null) return;     // skip pure-outlier runs
+      if(r.avg1>=AVG_OUTLIER) return;         // skip race-pace runs from qualifying-pace comparison
+      const i=DRIVERS_PRESENT.indexOf(s.driver);
+      const jitter=(Math.random()-0.5)*0.34;
+      points.push({x:i+jitter, y:r.avg1, _d:s.driver, _s:s.date, _r:r.no, _v001:false});
+      ranges[s.driver].vals.push(r.avg1);
+    });
+  });
+
+  const scatter={
+    type:'scatter',
+    data:{datasets:[{
+      data:points,
+      pointRadius:5, pointHoverRadius:7,
+      backgroundColor:points.map(p=>driverHex(p._d)),
+      borderColor:panel, borderWidth:1
+    }]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:panel, borderColor:grid, borderWidth:1,
+          titleColor:cssVar('--txt'), bodyColor:cssVar('--muted'), padding:10,
+          callbacks:{
+            title:(items)=>{ const p=items[0].raw; return `${p._d}`; },
+            label:(c)=>` ${c.raw._s} Run ${c.raw._r}: ${c.raw.y.toFixed(2)}s`
+          }
+        }
+      },
+      scales:{
+        x:{ min:-0.6, max:DRIVERS_PRESENT.length-0.4,
+            ticks:{color:tick,font:{family:'JetBrains Mono',size:10},stepSize:1,
+              callback:(v)=>{ const i=Math.round(v); return DRIVERS_PRESENT[i]?DRIVERS_PRESENT[i].split(' ').pop():''; }},
+            grid:{color:grid} },
+        y:{ ticks:{color:tick,font:{family:'JetBrains Mono',size:11},callback:v=>v.toFixed(1)},
+            grid:{color:grid},
+            title:{display:true,text:'Avg 1st Lap (s)',color:tick,font:{family:'JetBrains Mono',size:10}} }
+      }
+    },
+    plugins:[{
+      id:'medianTicks',
+      afterDatasetsDraw(chart){
+        const {ctx,scales:{x,y}}=chart;
+        DRIVERS_PRESENT.forEach((d,i)=>{
+          const vals=ranges[d].vals; if(!vals.length) return;
+          const sorted=[...vals].sort((a,b)=>a-b);
+          const mid=sorted.length%2? sorted[(sorted.length-1)/2] : (sorted[sorted.length/2-1]+sorted[sorted.length/2])/2;
+          const mn=Math.min(...vals), mx=Math.max(...vals);
+          const px=x.getPixelForValue(i);
+          const col=driverHex(d);
+          // min-max range bar
+          ctx.save();
+          ctx.strokeStyle=col; ctx.globalAlpha=.25; ctx.lineWidth=10;
+          ctx.beginPath(); ctx.moveTo(px,y.getPixelForValue(mn)); ctx.lineTo(px,y.getPixelForValue(mx)); ctx.stroke();
+          // median tick
+          ctx.globalAlpha=1; ctx.lineWidth=2.5;
+          ctx.beginPath(); ctx.moveTo(px-16,y.getPixelForValue(mid)); ctx.lineTo(px+16,y.getPixelForValue(mid)); ctx.stroke();
+          ctx.restore();
+        });
+      }
+    }]
+  };
+  if(stripChartObj) stripChartObj.destroy();
+  stripChartObj=new Chart(ctx,scatter);
+}
+
+/* =================== RENDER: DRIVER COUNTERS =================== */
+function renderCounters(){
+  const g=document.getElementById('counter-grid');
+  const byDriver={};
+  DRIVERS_PRESENT.forEach(d=>byDriver[d]={laps:0,runs:0,sessions:0});
+  SESSIONS.forEach(s=>{
+    byDriver[s.driver].sessions++;
+    s.runs.forEach(r=>{ byDriver[s.driver].laps+=runValidLapCount(r); byDriver[s.driver].runs++; });
+  });
+  g.innerHTML=DRIVERS_PRESENT.map(d=>{
+    const b=byDriver[d];
+    return `<div class="counter" style="--cc:${driverColor(d)}">
+      <div class="counter-name">${d}</div>
+      <div class="counter-laps" style="color:${driverColor(d)}">${b.laps}<small>valid laps</small></div>
+      <div class="counter-sub">${b.sessions} session${b.sessions>1?'s':''} · ${b.runs} runs${isGrip(d)?' · +5% grip':''}</div>
+    </div>`;
+  }).join('');
+}
+
+/* =================== RENDER: FILTERS =================== */
+let activeDriver='all', activeSim='all', activeTire='all';
+function renderFilters(){
+  const sims=[...new Set(SESSIONS.map(s=>s.sim))];
+  const tires=[...new Set(SESSIONS.map(s=>s.tire).filter(Boolean))];
+  const f=document.getElementById('filters');
+  let html=`<div class="filter-group"><span class="filter-glabel">Driver</span>`;
+  html+=`<button class="filter-btn active" data-type="driver" data-val="all">All</button>`;
+  DRIVERS_PRESENT.forEach(d=>{ html+=`<button class="filter-btn" data-type="driver" data-val="${d}">${d.split(' ').pop()}</button>`; });
+  html+=`</div><div class="filter-sep"></div><div class="filter-group"><span class="filter-glabel">Sim</span>`;
+  html+=`<button class="filter-btn active" data-type="sim" data-val="all">All</button>`;
+  sims.forEach(sm=>{ html+=`<button class="filter-btn" data-type="sim" data-val="${sm}">${sm}</button>`; });
+  html+=`</div>`;
+  if(tires.length){
+    html+=`<div class="filter-sep"></div><div class="filter-group"><span class="filter-glabel">Tire</span>`;
+    html+=`<button class="filter-btn active" data-type="tire" data-val="all">All</button>`;
+    tires.forEach(t=>{ html+=`<button class="filter-btn" data-type="tire" data-val="${t}">${t}</button>`; });
+    html+=`</div>`;
+  }
+  f.innerHTML=html;
+  f.querySelectorAll('.filter-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const type=btn.dataset.type;
+      f.querySelectorAll(`.filter-btn[data-type="${type}"]`).forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      if(type==='driver') activeDriver=btn.dataset.val;
+      else if(type==='sim') activeSim=btn.dataset.val;
+      else activeTire=btn.dataset.val;
+      renderSessions();
+    });
+  });
+}
+
+/* =================== RENDER: SESSION CARDS =================== */
+function renderSessions(){
+  const g=document.getElementById('sessions-grid');
+  const ordered=[...SESSIONS].sort((a,b)=>a.dateSort-b.dateSort);
+  const cards=ordered.filter(s=>
+    (activeDriver==='all'||s.driver===activeDriver) &&
+    (activeSim==='all'||s.sim===activeSim) &&
+    (activeTire==='all'||s.tire===activeTire)
+  ).map(s=>{
+    const sBest=sessionCleanBest(s);
+    const grip=isGrip(s.driver);
+    const runsHtml=s.runs.map(r=>{
+      const cb=runCleanBest(r);
+      const allOutlier=cb===null;
+      const isBest=cb!==null && sBest!==null && Math.abs(cb-sBest)<1e-6;
+      const bestCls=allOutlier?'outlier':(isBest?'session-best':'');
+      const bestVal=allOutlier?(r.times[0]!=null?r.times[0].toFixed(2):'—'):cb.toFixed(2);
+      return `<div class="run">
+        <div class="run-no">R${r.no}</div>
+        <div class="run-body">
+          <div class="run-desc">${r.desc}</div>
+        </div>
+        <div class="run-avg">${r.avg1!=null?r.avg1.toFixed(2):'—'}<br><span style="color:var(--dim)">avg1</span></div>
+        <div class="run-laps">${runValidLapCount(r)}L</div>
+        <div class="run-best ${bestCls}">${bestVal}</div>
+      </div>`;
+    }).join('');
+
+    const comments=s.runs.filter(r=>r.comment).map(r=>
+      `<div class="comment"><span class="comment-no">R${r.no}</span>${r.comment}</div>`
+    ).join('');
+
+    return `<div class="session-card" style="--cc:${driverColor(s.driver)}">
+      <div class="session-head">
+        <div class="session-driver">${s.driver}</div>
+        <div class="session-date">
+          <span>${s.date}, 2026 · ${s.car}</span>
+          <span class="tagpill ${s.sim.toLowerCase()}">${s.sim}</span>
+          ${s.tire?`<span class="tagpill tire">${s.tire}</span>`:''}
+          ${grip?'<span class="tagpill grip">+5% grip</span>':''}
+        </div>
+      </div>
+      <div class="session-meta">
+        <div class="sm-item"><div class="sm-k">Runs</div><div class="sm-v">${s.runs.length}</div></div>
+        <div class="sm-item"><div class="sm-k">Valid Laps</div><div class="sm-v">${sessionValidLaps(s)}</div></div>
+        <div class="sm-item"><div class="sm-k">Best Clean</div><div class="sm-v" style="color:${grip?driverColor(s.driver):'var(--accent)'}">${sBest!=null?sBest.toFixed(2):'—'}</div></div>
+      </div>
+      ${grip?`<div class="note-banner grip">▲ All ${s.driver.split(' ').pop()} sessions carry +5% artificial grip — excluded from headline comparisons.</div>`:''}
+      <div class="runs">${runsHtml}</div>
+      ${comments?`<div class="comments-block">${comments}</div>`:''}
+    </div>`;
+  }).join('');
+  g.innerHTML=cards || `<div style="font-family:var(--mono);font-size:12px;color:var(--dim);padding:20px">No sessions match this filter.</div>`;
+}
+
+/* =================== THEME =================== */
+function rebuildCharts(){ buildBestChart(); buildStripChart(); }
+document.getElementById('themebtn').addEventListener('click',()=>{
+  document.body.classList.toggle('light');
+  try{ localStorage.setItem('wat_theme', document.body.classList.contains('light')?'light':'dark'); }catch(e){}
+  setTimeout(rebuildCharts,30);
+});
+
+/* =================== INIT =================== */
+function startApp(){
+  try{ if(localStorage.getItem('wat_theme')==='light') document.body.classList.add('light'); }catch(e){}
+  renderHeaderStats();
+  renderSummary();
+  renderCounters();
+  renderFilters();
+  renderSessions();
+  rebuildCharts();
+}
+
+/* =================== PASSWORD GATE =================== */
+(function(){
+  const PW='joegibbs';
+  const gate=document.getElementById('lockgate');
+  const app=document.getElementById('app');
+  const input=document.getElementById('lockinput');
+  const btn=document.getElementById('lockbtn');
+  const err=document.getElementById('lockerr');
+  function reveal(){ gate.style.display='none'; app.classList.remove('app-hidden'); startApp(); }
+  try{ if(sessionStorage.getItem('wat_auth')==='1'){ reveal(); return; } }catch(e){}
+  function attempt(){
+    if(input.value===PW){ try{sessionStorage.setItem('wat_auth','1');}catch(e){} reveal(); }
+    else { err.textContent='Incorrect password'; gate.classList.add('shake'); setTimeout(()=>gate.classList.remove('shake'),400); input.value=''; input.focus(); }
+  }
+  btn.addEventListener('click',attempt);
+  input.addEventListener('keydown',e=>{ if(e.key==='Enter') attempt(); });
+  input.focus();
+})();
+</script>
+</body>
+</html>
